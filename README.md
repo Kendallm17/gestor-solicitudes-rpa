@@ -59,14 +59,14 @@ flowchart LR
     APR -->|"Approve o Reject"| RES["Aprobada o Rechazada"]
     AUTO --> DV
     RES --> DV
-    DV -.->|"solicitudes aprobadas"| BR["Puente: archivo Excel en OneDrive"]
-    BR -.-> BOT["Bot - Automation Anywhere"]
-    BOT -.-> ERP["ERP legacy sin API - Flask y SQLite"]
-    BOT -.->|"codigo ERP"| DV
+    DV -->|"solicitudes aprobadas"| BR["Puente: archivo Excel en OneDrive"]
+    BR --> BOT["Bot - Automation Anywhere"]
+    BOT --> ERP["ERP legacy sin API - Flask y SQLite"]
+    BOT -->|"codigo ERP"| DV
     AG["Agente Copilot Studio"] -.-> DV
 ```
 
-Las líneas continuas están implementadas. Las punteadas corresponden a fases todavía pendientes (ver sección 5).
+Las líneas continuas están implementadas y probadas. La línea punteada del agente de Copilot Studio está configurada, pero sin prueba en vivo (ver fase 8 en la sección 5).
 
 ### Flujo de la decisión
 
@@ -177,10 +177,10 @@ En cualquier otro caso  =>  aprobación humana
 | 3. Aplicación | Canvas App con formulario de nueva solicitud y confirmación | Completada |
 | 4. Flujo de aprobación | Aprobación automática y rama de aprobación humana con actualización de estado | Completada (ver pruebas) |
 | 5. ERP legacy y SQL | ERP sin API en Flask y scripts SQL con análisis e índices | Completada |
-| 6. Puente y bot RPA | El flujo escribe las solicitudes aprobadas en un Excel; el bot las registra en el ERP y devuelve el código | Pendiente |
-| 7. Devolución del resultado | Flujo que guarda `IdRegistroERP` y pasa el estado a Registrada o Error | Pendiente |
-| 8. Agente conversacional | Agente de Copilot Studio para consultar el estado | Pendiente |
-| 9. Cierre | Exportar la solución, video demostrativo y capturas | Pendiente |
+| 6. Puente y bot RPA | El flujo escribe las solicitudes aprobadas en un Excel; el bot las registra en el ERP y devuelve el código | Completada (el bot se ejecuta bajo demanda) |
+| 7. Devolución del resultado | Flujo que guarda `IdRegistroERP` y pasa el estado a Registrada. Hay una versión programada cada 15 min, creada y desactivada | Completada |
+| 8. Agente conversacional | Agente de Copilot Studio con la herramienta *Mostrar filas* de Dataverse sobre la tabla Solicitud | Configurada; sin prueba en vivo porque el entorno educativo no tiene créditos de Copilot Studio |
+| 9. Cierre | Solución exportada, capturas y documentación del bot | Completada (video demostrativo pendiente) |
 
 ### Pruebas realizadas
 
@@ -188,7 +188,11 @@ En cualquier otro caso  =>  aprobación humana
 |---|---|---|
 | Alimentación, 12 000 (límite 25 000) | Aprobada automáticamente | Correcto |
 | Capacitación, 30 000 (límite 0) → Aprobar | Pasa a Aprobada, `AprobadoPor` = Aprobación manual | Correcto |
-| Capacitación → Rechazar | Pasa a Rechazada | Pendiente de probar |
+| Capacitación → Rechazar | Pasa a Rechazada | Correcto |
+| Bot: filas aprobadas sin registrar | Registra en el ERP, escribe el código y marca `Registrado` en el Excel | Correcto |
+| Fila nueva: Taxi aeropuerto (900) | ERP-000003 y en Dataverse pasa a Registrada | Correcto |
+| Bot: se reejecuta con filas ya registradas | Las omite (idempotencia por `EstadoRPA`) | Correcto |
+| Flujo de sincronización programado | Ejecución manual de prueba en verde | Correcto |
 | ERP: registro válido | Código `ERP-000001` | Correcto |
 | ERP: mismo `id_solicitud` dos veces | Rechazo por duplicado | Correcto |
 | ERP: validaciones (correo, monto, categoría) | Mensajes de error | Correcto (pruebas automáticas) |
@@ -235,9 +239,9 @@ Los scripts están en `erp-legacy/sql/` y se ejecutan con `seed.py`, `run_analys
 
 - **Datos ficticios.** No se usan datos reales ni de ninguna organización.
 - **Todo dentro de una solución** de Power Platform, para exportarla y llevarla a otro entorno sin perder dependencias.
-- **Credenciales del ERP** de demostración. En el bot se guardarán en el *Credential Vault* de Automation Anywhere, nunca dentro del código del bot.
+- **Credenciales del ERP** de demostración. El bot lee la contraseña desde el *Credential Vault* de Automation Anywhere (paso 5 del bot), por lo que no queda escrita dentro del código del bot.
 - **Entorno de desarrollo separado.** El proyecto se construyó en un entorno propio de pruebas, no en el de ningún empleador.
-- **Idempotencia y manejo de errores.** El ERP rechaza duplicados; el bot debe distinguir un duplicado de un fallo real y dejar el estado `Error` con evidencia.
+- **Idempotencia.** El bot omite las filas ya marcadas `Registrado` y el ERP responde 409 ante un `id_solicitud` duplicado. El manejo explícito de errores del bot (estado `Error` con evidencia) queda como mejora futura.
 - **Reglas de negocio centralizadas.** El límite vive en datos (`Categoria`), no escrito dentro del flujo.
 
 ---
@@ -248,6 +252,8 @@ Los scripts están en `erp-legacy/sql/` y se ejecutan con `seed.py`, `run_analys
 - El correo del solicitante se escribe a mano en el formulario; lo ideal es tomarlo del usuario autenticado.
 - Hay una sola ruta de aprobación (un aprobador). Una versión real tendría aprobadores por categoría o por jerarquía.
 - No hay adjuntos de comprobantes.
+- El bot no maneja aún el caso de error del ERP (por ejemplo, un 409): hoy omite las filas ya registradas, pero no marca `Error` con evidencia.
+- El agente de Copilot Studio no se pudo probar en vivo por falta de créditos en el entorno educativo.
 - Mejoras posibles: integrar `Environment variables` para el correo del aprobador, agregar un panel de seguimiento y migrar el ERP simulado a PostgreSQL.
 
 ---
@@ -259,7 +265,7 @@ gestor-solicitudes-rpa/
 ├── README.md             Este documento
 ├── erp-legacy/           ERP sin API (Flask) y scripts SQL
 ├── powerplatform/        Solución exportada (Power Apps, Dataverse, flujos)
-├── rpa-bot/              Bot de Automation Anywhere exportado
+├── rpa-bot/              Descripción paso a paso del bot (la edición Community no exporta)
 └── docs/                 Capturas, diagramas y video
 ```
 
@@ -267,13 +273,18 @@ gestor-solicitudes-rpa/
 
 ## 11. Capturas
 
-<!-- Agrega aquí las capturas reales; quita las líneas de las que aún no tengas -->
-- `docs/img/modelo-dataverse.png`: tablas `Categoria` y `Solicitud` con su relación.
-- `docs/img/canvas-app.png`: formulario de nueva solicitud.
-- `docs/img/flujo-aprobacion.png`: flujo completo con sus dos ramas.
-- `docs/img/aprobacion-correo.png`: correo de aprobación.
-- `docs/img/erp-confirmacion.png`: registro creado en el ERP.
-- `docs/img/sql-explain.png`: plan de ejecución antes y después del índice.
+| Captura | Qué muestra |
+|---|---|
+| `docs/img/01-modelo-dataverse.png` | Tablas `Categoria` y `Solicitud` con su relación |
+| `docs/img/02-power-apps.png` | Formulario de nueva solicitud |
+| `docs/img/03a-flujo-aprobacion-inicio.png` y `03b-flujo-aprobacion-ramas.png` | Flujo de aprobación con sus ramas |
+| `docs/img/04-aprobacion-correo.png` | Correo de aprobación |
+| `docs/img/05-erp.png` | Registros creados en el ERP |
+| `docs/img/06a` a `06d` | Bot de Automation Anywhere, completo |
+| `docs/img/07-excel.png` | Excel puente con `CodigoERP` y `EstadoRPA` |
+| `docs/img/08-flujo-sync.png` y `08b-flujo-sync-programado.png` | Flujos que devuelven el código a Dataverse |
+| `docs/img/09-dataverse-registrada.png` | Solicitudes en estado Registrada con su código ERP |
+| `docs/img/10-agente.png` | Agente de Copilot Studio con su herramienta de Dataverse |
 
 ---
 
