@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Registro creado · ERP Contable{% endblock %}
+{% block content %}
+<div class="msg ok" id="mensaje-ok">Registro creado correctamente.</div>
+<p>Código de registro: <strong id="codigo-registro">{{ r.codigo }}</strong></p>
+<table>
+  <tr><th>Id solicitud</th><td id="det-id-solicitud">{{ r.id_solicitud }}</td></tr>
+  <tr><th>Solicitante</th><td>{{ r.solicitante_email }}</td></tr>
+  <tr><th>Categoría</th><td>{{ r.categoria }}</td></tr>
+  <tr><th>Monto</th><td>{{ "%.2f"|format(r.monto) }}</td></tr>
+  <tr><th>Descripción</th><td>{{ r.descripcion }}</td></tr>
+  <tr><th>Fecha</th><td>{{ r.fecha_registro }}</td></tr>
+</table>
+<p><a href="{{ url_for('nuevo') }}" id="lnk-otro">Registrar otro</a></p>
+{% endblock %}

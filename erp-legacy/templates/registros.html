@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Registros · ERP Contable{% endblock %}
+{% block content %}
+<h2>Últimos registros</h2>
+<form method="get" id="form-buscar">
+  <input type="text" name="q" id="q" value="{{ q }}" placeholder="Buscar por correo, código o id de solicitud">
+  <button type="submit" id="btn-buscar">Buscar</button>
+</form>
+<br>
+<table id="tabla-registros">
+  <tr><th>Código</th><th>Solicitante</th><th>Categoría</th><th>Monto</th><th>Fecha</th><th>Estado</th></tr>
+  {% for f in filas %}
+  <tr>
+    <td>{{ f.codigo }}</td><td>{{ f.solicitante_email }}</td><td>{{ f.categoria }}</td>
+    <td>{{ "%.2f"|format(f.monto) }}</td><td>{{ f.fecha_registro }}</td><td>{{ f.estado }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6">Sin registros.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}
